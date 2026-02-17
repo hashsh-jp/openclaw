@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/websearch",
+  "version": "2026.2.16",
+  "description": "Web search tool plugin with multi-provider support",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  }
+}
