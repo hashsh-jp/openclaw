@@ -18,171 +18,169 @@
 ## 1. 変更してよい場所 / 原則触ってはいけない場所
 
 ### ✅ 変更してよい（通常の作業範囲）
+- `plugins/**`（最優先）
+- `extensions/**`（存在する場合）
+- `docs/**`
+- `tests/**`
+- `scripts/**`（開発補助）
+- `README*`, `RULE.md`, `AGENTS.md`（運用ルール）
 
-* `plugins/**`
-* `extensions/**`
-* `docs/**`
-* `tests/**`
-* `scripts/**`
-* `README*`, `RULE.md`, `AGENTS.md`
-
-### ⚠️ 原則触ってはいけない
-
-* `apps/**`（アプリ起動・エントリポイント）
-* `packages/**`（共有ライブラリ/コアロジック）
-* `src/**` の既存基盤処理
-* 起動フロー / CLI本体 / 認証部分
+### ⚠️ 原則触ってはいけない（変更するなら事前提案が必要）
+- `src/core/**` / `core/**` / `packages/core/**` など「OpenClawの核」
+- 既存の重要な初期化・起動フロー・CLI本体
+- 既存のプロトコル・I/O・認証部分
 
 ---
 
-## 2. ブランチ運用
+## 2. ブランチ運用（必須）
 
-* `main` へ直接コミット禁止
-* `feat/*` `fix/*` `chore/*` のみ使用
-
----
-
-## 3. Plugin First 原則
-
-* 新機能は `plugins/<plugin-name>/` に完結させる
-* コア変更は「追加のみ」
-* 既存挙動を書き換えない
+- `main` へ直接コミット禁止
+- 作業ブランチは必ず `feat/*` `fix/*` `chore/*` のいずれか
+  - 例: `feat/telegram-ratelimit`, `fix/plugin-loader`, `chore/update-deps`
 
 ---
 
-## 4. docs/ 必須
+## 3. 実装スタイル（差分最小のための原則）
 
-`docs/YYYY-MM-DD-topic.md`
+### 3.1 Plugin First
+- 新機能はまず `plugins/<plugin-name>/` で完結させる。
+- プラグインは「設定 → 初期化 → 実行」の単位で独立させる。
+- プラグイン間の依存は最小化。共通処理は `plugins/_shared/` に集約してOK。
 
-* 目的
-* 仕様
-* 影響範囲
-* 動作確認
-* 制約
+### 3.2 コアへのフックが必要な場合
+- コアに追加するのは「拡張ポイント」だけ（例: plugin loader、hook、イベントバス）
+- 既存ロジックの書き換えは避け、**追加**で対応する。
+- 変更は1ファイル・数十行で終わる形を狙う。
 
----
-
-## 5. テスト必須
-
-最低1テスト追加
-実行コマンドを docs に記載
-
----
-
-## 6. 設定ルール
-
-* デフォルト値必須
-* `.env.example` 更新
-* 秘密情報ログ禁止
+### 3.3 互換性
+- Node / Python / ランタイム要件を勝手に上げない（必要なら `docs/` に提案）。
+- 既存の設定ファイル形式・CLI引数は壊さない。
 
 ---
 
-## 7. upstream追従を壊さない
+## 4. ドキュメント必須（docs/ に残す）
 
-* 大規模リネーム禁止
-* 依存追加最小
-* hookに集約
+新規実装・重要修正のたびに、以下を `docs/` に1ファイル作る：
 
----
-
-## 8. コミット規約
-
-`feat(plugin-xxx): add feature`
-`fix(loader): handle config`
+- `docs/<YYYY-MM-DD>-<topic>.md`
+  - 目的 / 背景
+  - 仕様（入力・出力・例）
+  - 影響範囲（変更ファイル一覧）
+  - 動作確認手順（コマンド）
+  - 既知の制約 / TODO
 
 ---
 
-## 最重要原則
+## 5. テスト & 実行確認（必須）
 
-> 成功条件は高品質コードではなく
-> **永続的にアップデート追従できること**
+### 5.1 変更ごとに最低限
+- 変更点に対応するテストを **最低1本** 追加（unit または integration）
+- 実行確認コマンドを `docs/` に明記
 
----
-
-# AGENTS.md — OpenClaw Multi-Agent Workflow
-
-Claude Code を役割分担チームとして動作させる。
-
-## フロー
-
-Researcher → Architect → Safety → Implementer → Tester → Integrator → UpstreamGuard
+### 5.2 実行コマンドの優先順位
+1. `npm test` / `pnpm test` / `pytest`
+2. `npm run lint` / `npm run typecheck`
+3. `npm run build`
+4. 可能なら最小のE2E（例: ローカルで1回起動 → 期待ログ）
 
 ---
 
-## 共通出力形式
+## 6. 設定の扱い（安全 & 再現性）
 
-```
-# Agent: <role>
-## Summary
-
-## FilesTouched
-
-## Risks
-
-## NextAgent
-```
+- 新しい設定は `openclaw.config.*`（存在する形式）に追加する。
+- 設定は **デフォルト値** を必ず持たせる。
+- `.env` を読む場合は、キー名を `docs/` と `.env.example` に書く。
+- ログに秘密情報を出さない（トークン・Cookie・個人情報）。
 
 ---
 
-## Researcher
+## 7. ログ & エラー方針（運用で死なないため）
 
-調査のみ、実装禁止
-
----
-
-## Architect
-
-最小変更設計
-plugin優先
-
----
-
-## Safety
-
-破壊判定
-NGならArchitectへ差し戻し
+- 例外は握り潰さず、意味のあるメッセージで throw / return error。
+- 重要処理には「開始」「成功」「失敗」をログ出しする。
+- 外部API（Telegram/X/Discord等）は
+  - rate limit
+  - retry（指数バックオフ）
+  - timeout
+  - idempotency
+  を考慮する。
 
 ---
 
-## Implementer
+## 8. upstream 追従を壊さないためのルール
 
-設計通り実装のみ
-改善禁止
-
----
-
-## Tester
-
-最低1テスト
-再現手順提示
+- 既存ファイルの大規模リネーム・移動は禁止（どうしてもなら提案→最小）。
+- 依存追加は最小。追加する場合は理由と代替案を `docs/` に残す。
+- 「upstream更新で競合しやすい場所」に変更を入れない。
+  - 入れるなら、hook/adapter/plugin loader など一点に集中させる。
 
 ---
 
-## Integrator
+## 9. upstream取り込み時の作法（手順固定）
 
-起動確認
-既存機能確認
-plugin ON/OFF確認
+upstream を取り込む作業が発生したら：
 
----
-
-## UpstreamGuard
-
-将来競合評価
-
-```
-UpgradeRisk: LOW | MEDIUM | HIGH
-MergeStrategy: rebase | isolate | patch
-```
+1. `git fetch upstream`
+2. 原則 `rebase upstream/main`（チーム運用なら merge でも可）
+3. 競合が出たら **plugins化で回避できないか** を最初に検討
+4. 解消後、必ず
+   - tests
+   - build
+   - 最小起動確認
+5. 取り込み結果を `docs/` に一行でも残す（何が変わったか）
 
 ---
 
-## 起動テンプレ
+## 10. コミット規約（レビューしやすさ最優先）
 
-```
-You are operating in AGENTS TEAM MODE.
-Follow AGENTS.md strictly.
-Start from Researcher.
-Do NOT skip agents.
-Goal: <task>
-```
+- 1コミット = 1目的（混ぜない）
+- コミットメッセージ例
+  - `feat(plugin-xxx): add <feature>`
+  - `fix(loader): handle missing config`
+  - `chore(docs): add setup notes`
+- 大きめ変更は PR 前提で、説明を `docs/` に置く。
+
+---
+
+## 11. Claude Code の作業プロトコル（重要）
+
+Claude Code は作業前に必ず以下を出力してから実装に入る（短くていい）：
+
+- 目的（1行）
+- 触るファイル一覧（変更範囲）
+- 実行確認コマンド（最低1つ）
+
+実装後は必ず：
+
+- 変更点まとめ（3行以内）
+- 実行確認結果（実行したコマンドと結果）
+- TODO（残るなら）
+
+---
+
+## 12. 禁止事項（破るとupstream追従が死ぬ）
+
+- コアの全面書き換え
+- 無計画な依存追加（特に巨大フレームワーク導入）
+- 設定形式の破壊的変更
+- 秘密情報のコミット
+- テストなしの機能追加（最低1本は必須）
+
+---
+
+## 付録：推奨ディレクトリ構成（存在しない場合は作ってOK）
+
+- plugins/
+  - plugin-<name>/
+    - index.(ts|py)  # エントリ
+    - config.(ts|json) # 設定スキーマ/デフォルト
+    - README.md
+  - _shared/
+- docs/
+- tests/
+- scripts/
+- .env.example
+
+---
+
+不明点や例外が必要な場合は、必ず `docs/` に提案を書き、最小変更で合意できる案を採用する。
