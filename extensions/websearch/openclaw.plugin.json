@@ -1,0 +1,9 @@
+{
+  "id": "websearch",
+  "name": "Web Search",
+  "description": "Web search tool plugin with multi-provider support.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}
